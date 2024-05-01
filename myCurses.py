@@ -1,7 +1,8 @@
 import time
 import curses
-#import gdbcontrol, textualize, wrapper doesn't work
 #from curses import wrapper
+#python print(dir(gdb))
+
 
 #f=input("enter a executable filename: ")
 
