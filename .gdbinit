@@ -1,17 +1,16 @@
-python
+python  
 import time
 import curses
 import subprocess
-import sys
-#python print(dir(gdb))
-#ord('char')
-#chr(ascii_code)
-#handle('frame') command returns file and line. 
-#TASK find the stop signal, set up screen refresh
-#TASK find the breakpoints?
+import sys #sys.path.insert(0, '/home/cmannett85/PrettyPrinters')
+
+#todo add syntax linters
 
 global myInferior
-global trace_scroll
+global trace_scroll #controls trace position. editable by user
+trace_scroll=0
+global b_list
+b_list=""
 
 def exit_curses(): #End Curses
     curses.curs_set(1) #Turn off blinking Cursor
@@ -21,38 +20,30 @@ def exit_curses(): #End Curses
     curses.endwin() #close app
     sys.exit(1)
 
-#stdscr.refresh() #updates screen to painted
-#time.sleep(5)
-    
 def check_inferior(): #retrieve the file name from the debugging info. This will not work if the file is in another folder. Revisit if possible
-    result=handle("frame")
+    result=handle("frame") #handle('frame') command returns file and line. 
     if result:
         result=result.partition('\n')[0]
         sentence=result.split()
         where=sentence[-1]
         file_line=where.split(":")
         global trace_scroll
+        global myInferior
         trace_scroll=int(file_line[1])
-        return file_line[0]
+        myInferior=file_line[0]
+        return True
     return False
 
-def handle(cmd): #Call the gdb function idiot
+def handle(cmd): #Call the appropriate gdb function
     try: 
         result=gdb.execute(cmd, to_string=True)
     except gdb.error as e:
         print("GDB call error: ", e)
         #exit_curses()
-    return result
-
-def get_linecount(inferior_program): #return the inferior program's linecount for indexing
-    lc,err=(subprocess.Popen(["wc","-l", inferior_program], stdout=subprocess.PIPE)).communicate() #send line count command to cli, capture output and unbox with communicate
-    lc=lc.split()
-    lc=int(lc[0])
-    #print(lc) #returns correct line count (134)
-    #line_count=subprocess.Popen(["sed -n", "'$='", inferior_program], stdout=subprocess.PIPE)
-    return lc #return the line count as a number
+    return result 
 
 def get_breakpoints(): #retrieve all current breakpoints
+    global b_list
     b_list=handle("info breakpoints")
     b_list=b_list.split('\n')
     cleaned_list=b_list[1:]
@@ -65,54 +56,6 @@ def get_breakpoints(): #retrieve all current breakpoints
     #print("breakpoints returns: ", num_and_line)
     return cleaned_list
 
-def create_breakpoint():
-    handle("break MakeHeap")
-    handle("break Bubble")
-    return
-
-
-#f=input("enter a executable filename: ")
-f="heap" #replace
-handle("file " + str(f))
-#result=handle("file " + str(f))
-#print("result: ", result) #print return
-#signalz=handle("catch all")
-handle("start") #run and set initial breakpoint
-inf=check_inferior()
-#print(inf)
-#create_breakpoint()
-#print(get_breakpoints())
-
-#print(get_linecount(inf))
-#out=handle("run")
-#print("run output: ", out)
-#print("signal check caught: ", signalz)
-v_count=0
-
-
-#Init Curses
-stdscr=curses.initscr() #start app
-curses.start_color()
-curses.noecho() # off screen input writing
-curses.cbreak() #handle each keystroke without returning
-stdscr.keypad(True) #key binding
-curses.curs_set(0) #Turn off blinking Cursor
-trace_scroll=0 #controls trace position. editable by user
-debug_scroll=0
-
-#Draw Screen
-height=curses.LINES
-width=curses.COLS
-half_width=int((width/2)-1)
-half_height=int((height/2)-1)
-#stdscr.addstr(1,1,"hello") #(y,x) coordinates
-vars = curses.newwin(int(height/2), half_width, 0, 0) #(height, width, begin_y, begin_x)
-dbInfo = curses.newwin(int(height/2), half_width, int(height/2)+1, 0) #(height, width, begin_y, begin_x)
-code_win= curses.newwin(height-2, half_width-2, 0, half_width+2)
-visible_cmds=curses.newwin(1, width, height-1, 0)
-#local_vars=local_vars.split('\n')
-local_vars=handle("info locals")
-trace_scroll=0
 
 
 
@@ -140,28 +83,10 @@ def refresh_all(): #use instead of getch/individual pad refreshes to keep eveery
 
 
 def refresh_vars(variables): #check if same or not and erase accordingly boo
-    # local_vars=handle("info locals"
     variables=variables.split('\n')
-    # if var_count>half_width:
-    #     var_count=half_width
-    # var_count=len(variables)
-    #vars.erase()
-    #vars.addstr("Variables: \n")
     for z, line in enumerate(variables[:half_height]) :
         if z==0:
             vars.addstr(0,0,"Variables:")
-        #line_len=len(variables[y])
-        #if len(variables[y]) > half_width: #only show what's showable within the screen size
-            #print("long var")
-            #line_len=half_width-1
-        #elif isinstance(variables[y], str):
-                #print(variables[y])
-                #vars.addstr(variables[y])
-        #for x in range(line_len-1):
-            #print(variables[y][x])
-        #print(variables[y])
-        #try:
-            #print("var: ", variables[y])
         vars.addnstr(z+1, 0, line, half_width-2) #add up to 2 items
         #except Exception as e:
             #print(e)
@@ -169,15 +94,10 @@ def refresh_vars(variables): #check if same or not and erase accordingly boo
     vars.noutrefresh() 
 
 
-# for y in range(0, int(height/2)):
-#     for x in range(0, int(width/4)):
-#         dbInfo.addstr('hi')
-
-
 def win_update():
-    if inf: #if a file is entered
+    if myInferior: #if a file is entered
         code_win.erase()
-        f=open(inf)
+        f=open(myInferior)
         myLines=f.readlines() 
         inf_h=len(myLines)-1 #read current line instead maybe split the boys instead of read lines
         global trace_scroll
@@ -189,6 +109,7 @@ def win_update():
         myLines=myLines[trace_scroll: inf_h]
         #print(myLines)
         for y in range(height-3):
+             #bold the active line
             line_len=len(myLines[y])
             if line_len > half_width-1: #only show what's showable within the screen size
                 line_len=half_width-2
@@ -196,63 +117,81 @@ def win_update():
                 #code_win.addch(y,w, myLines[y][w])
                 if y>= height or w>= half_width:
                     print("inferior window out of range")
+                if y==trace_scroll: #a_bold or a_standout
+                    code_win.addch(y, w, myLines[y][w], curses.A_STANDOUT) #add strandout spaces for the rest of the line?
                 elif isinstance(myLines[y][w], str):
                     try:
                         code_win.addch(y, w, myLines[y][w])
                     except Exception as e:
                         print("inferior code line print update error: ", e, height-1,  y, w, myLines[y][w])
         code_win.noutrefresh()
-            #for x in range(0, line_len-1):
-            #else:
-                #code_win.addstr(str(myLines[y]))
-                #print(str(myLines[y]))
-
-        #code_trace.refresh(trace_scroll, 0, 0, int(width/2)+5, (height-5), (width-2)) # upper left coordinate of pad(0,0), upper left of window to be filled(5,5), lower right corner of pad
 
 def refresh_db():
         dbInfo.addstr("Debug Info:")
         dbInfo.noutrefresh()
-# half_width=int((width/2)-5)
-# if inf: #if a file is entered
-#     f=open(inf)
-#     inf_h=get_linecount(inf)
-#     code_trace=curses.newpad(inf_h+1, half_width) #new pad that can show a portion of it's contents
-#     for y in range(0, inf_h):
-#         myLine=f.readline() #read current line
-#         #myLine=myLine.strip()
-#         line_len=len(myLine)
-#         #print("file line length: ", inf_h, "this line: ", myLine)
-#         #code_trace.addch(y,x, lines[y][0])
-#         if line_len>half_width-1: #only show what's showable within the screen size
-#             line_len=half_width-1
-#         for x in range(0, line_len-1):
-#         #     if lines[y][x] :
-#                 code_trace.addch(y,x, myLine[x])
+
+
+def break_yes(event):
+    #print("reached break event yay")
+    if gdb.selected_inferior().pid!=0:
+        #refresh_all()
+        user_ctrl()
+    #print("pid=0")
+
+def resume_me(event):
+    #print("resume run!")
+    user_ctrl()
+
+#Init file stuff 
+#f=input("enter a executable filename: ")
+f="heap" #replace
+handle("file " + str(f))
+handle("start") #run and set initial breakpoint
+myInferior=check_inferior() #set inferior file, update scroll pos
+v_count=0
+#gdb.events.exited.connect(exit_curses) #catch any exists
+#gdb.events.stop.connect(break_yes)
+#gdb.events.cont.connect(resume_me)
 
 
 
-def handle_go(cmd): #Call the gdb function idiot
-    try: 
-        result=gdb.execute("run", to_string=True)
-    except gdb.error as e:
-        print("run exception: ", e)
-    print("handle go reesult:", result)
+#Init Curses
+stdscr=curses.initscr() #start app
+curses.start_color()
+curses.noecho() # off screen input writing
+curses.cbreak() #handle each keystroke without returning
+stdscr.keypad(True) #key binding
+curses.curs_set(0) #Turn off blinking Cursor
+debug_scroll=0
+
+#Draw Screen
+height=curses.LINES
+width=curses.COLS
+half_width=int((width/2)-1)
+half_height=int((height/2)-1)
+#stdscr.addstr(1,1,"hello") #(y,x) coordinates
+vars = curses.newwin(int(height/2), half_width, 0, 0) #(height, width, begin_y, begin_x)
+dbInfo = curses.newwin(int(height/2), half_width, int(height/2)+1, 0) #(height, width, begin_y, begin_x)
+code_win= curses.newwin(height-2, half_width-2, 0, half_width+2)
+visible_cmds=curses.newwin(1, width, height-1, 0)
+#local_vars=local_vars.split('\n')
+local_vars=handle("info locals")
+trace_scroll=0
 
 
-    # for y in range(0, 99):
-    #     for x in range(0, 99):
-    #         code_trace.addch(y,x, ord('a') + (x*x+y*y) % 26)
-#dbInfo.addstr("Debug Info:")
+#visible_cmds.addstr("n:Next line b:Set Breakpoint")
+#visible_cmds.noutrefresh()
 stdscr.refresh() #updates screen upon launching rather than waiting for keystroke
-refresh_new_vars()
-refresh_all()
-#time.sleep(5)
-#time.sleep(10)
-#vars.getch()# upper left coordinate of pad(0,0), upper left of window to be filled(5,5), lower right corner of pad
-#dbInfo.getch()
-
+refresh_new_vars() #grab new vars
+refresh_all() #refresh all panes. 
 
 while True:
+    #print("in user control function! ")
+    #global b_list
+    #global trace_scroll
+    if b_list!="": #looping breakpoint
+        breakpoint="break"+b_list
+        out=handle(breakpoint)
     c = stdscr.getch() #get raw user input commands
     if c == curses.KEY_RESIZE:
         curses.resizeterm(*stdscr.getmaxyx())
@@ -270,71 +209,41 @@ while True:
         trace_scroll+=1
         refresh_all() 
 
-    ch = chr(c) #input is a letter
+    ch = chr(c) #chr(ascii_val) becomes a letter
     #if ch=='r':
         #out=handle_go("run") #already in start boo
         #dbInfo.addstr(out)
         #dbInfo.noutrefresh()
         #refresh_all()
-    if ch=='n':
+    if ch=='n': #next line
+        print("next")
         try: 
-            result=gdb.execute("next", to_string=True)
-            result=result.split(' ')
+            #result=handle("next")
+            #result=result.split()
             #result=result[0]
-            print("next result:" , result)
-            check_inferior()
             #trace_scroll=int(result)
+            #print("next result: " , repr(result), result)
+            #check_inferior()
+            #win_update()
+            trace_scroll=5
         except gdb.error as e:
-            dbInfo.addstr(e)
-            dbInfo.noutrefresh()
+            #dbInfo.addstr("next command error: ", e)
+            #dbInfo.noutrefresh()
             print("next command exception", e)
         refresh_all()
         #print(result)
         #refresh_all()
     elif ch=='b':
-        global b_list
-        b_list+=trace_scroll
-        breakpoint="break"+str(trace_scroll)
+        handle("clear")
+        b_list=str(trace_scroll)
+        breakpoint="break"+b_list
         out=handle(breakpoint)
     #elif ch=='m': #display registers
 
     elif ch == 'q': #113:'q' in ascii
         exit_curses()
-            
 
-def tokenizer(cmd):
-    if cmd==b:
-        cmd='break main' #This should become the pointer location
-    elif cmd==c:
-        cmd='continue'
-    elif cmd==d:
-        cmd='delete main' #this should become the pointer location
-    elif cmd==i:
-        cmd='info breakpoints' 
-    elif cmd==s:
-        cmd="step"
-    elif cmd==r:
-        cmd="run"
-    elif cmd==v:
-        cmd="info locals" #local block vars? Include array of globals as well?
-
-
-def error():
-    print("Error Occurred: ", gdb.error)
-    return
-
-def main():
-    #f=input("enter a executable filename: ")
-    load(heap)
-    cmd=input("enter a command: ")
-    handle(cmd)
-
-
-if __name__ == "__main__":
-    main()
-exit_curses()
-
-end #end python
+end 
 
 #start real gdb stuff. I am the inferior program :( The debugged)
 #set startup-with-shell off #disable external shell? current error? gdb issue?
