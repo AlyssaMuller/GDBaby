@@ -147,8 +147,7 @@ def resume_me(event):
 f="heap" #replace
 handle("file " + str(f))
 handle("start") #run and set initial breakpoint
-myInferior=check_inferior() #set inferior file, update scroll pos
-v_count=0
+check_inferior() #set inferior file, update scroll pos
 #gdb.events.exited.connect(exit_curses) #catch any exists
 #gdb.events.stop.connect(break_yes)
 #gdb.events.cont.connect(resume_me)
@@ -175,7 +174,7 @@ dbInfo = curses.newwin(int(height/2), half_width, int(height/2)+1, 0) #(height, 
 code_win= curses.newwin(height-2, half_width-2, 0, half_width+2)
 visible_cmds=curses.newwin(1, width, height-1, 0)
 #local_vars=local_vars.split('\n')
-local_vars=handle("info locals")
+#local_vars=handle("info locals")
 trace_scroll=0
 
 
@@ -218,17 +217,17 @@ while True:
     if ch=='n': #next line
         print("next")
         try: 
-            #result=handle("next")
+            result=handle("next")
             #result=result.split()
             #result=result[0]
             #trace_scroll=int(result)
             #print("next result: " , repr(result), result)
-            #check_inferior()
-            #win_update()
-            trace_scroll=5
+            check_inferior()
+            refresh_all()
+            #trace_scroll=5
         except gdb.error as e:
-            #dbInfo.addstr("next command error: ", e)
-            #dbInfo.noutrefresh()
+            dbInfo.addstr("next command error: ", e)
+            dbInfo.noutrefresh()
             print("next command exception", e)
         refresh_all()
         #print(result)
